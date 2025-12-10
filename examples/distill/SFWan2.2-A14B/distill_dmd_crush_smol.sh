@@ -20,7 +20,7 @@ export FASTVIDEO_ATTENTION_BACKEND=VIDEO_SPARSE_ATTN
 
 
 # Configs
-NUM_GPUS=1
+NUM_GPUS=8
 
 # Model paths for Wan2.2 A14B distillation
 MODEL_PATH="Wan-AI/Wan2.2-T2V-A14B-Diffusers"
@@ -51,11 +51,11 @@ training_args=(
 
 # Parallel arguments
 parallel_args=(
-  --num_gpus 1
+  --num_gpus "$NUM_GPUS"
   --sp_size 1
   --tp_size 1
-  --hsdp_replicate_dim 1
-  --hsdp_shard_dim 1
+  # --hsdp_replicate_dim 1
+  # --hsdp_shard_dim 1
 )
 
 # Model arguments

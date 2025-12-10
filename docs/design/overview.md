@@ -19,6 +19,7 @@ This document outlines FastVideo's architecture for developers interested in fra
 - [`fastvideo/forward_context.py`](#design-forwardcontext) - Forward pass context management
 - `fastvideo/utils.py` - Utility functions
 - [`fastvideo/logger.py`](#design-logger) - Logging infrastructure
+- [Latent Tensor Layouts](#latent-tensor-layouts) - BCTHW vs BTCHW format considerations
 
 ## Core Architecture
 
@@ -386,6 +387,46 @@ The platform system is designed to be extensible for future hardware targets.
 See [PR](https://github.com/hao-ai-lab/FastVideo/pull/356)
 
 *TODO*: (help wanted) Add an environment variable that disables process-aware logging.
+
+## Latent Tensor Layouts
+
+FastVideo supports two latent tensor layouts, and understanding them is critical when working with attention backends:
+
+### BCTHW Layout (Default)
+- Shape: `[Batch, Channels, Time, Height, Width]`
+- Used by: Standard `DenoisingStage`, `WanPipeline`, most inference pipelines
+- Example: `[1, 16, 21, 56, 104]` for a video with 21 latent frames
+
+### BTCHW Layout
+- Shape: `[Batch, Time, Channels, Height, Width]`
+- Used by: `DmdDenoisingStage`, DMD distillation pipelines
+- Example: `[1, 21, 16, 56, 104]` for the same video
+
+### Why This Matters
+
+When building attention metadata (e.g., for Video Sparse Attention), the code needs to extract `[T, H, W]` dimensions from `batch.raw_latent_shape`. The correct indices depend on the layout:
+
+| Layout | `raw_latent_shape` | Extract `[T, H, W]` |
+|--------|-------------------|---------------------|
+| BCTHW  | `[B, C, T, H, W]` | `raw_latent_shape[2:5]` → `[T, H, W]` ✓ |
+| BTCHW  | `[B, T, C, H, W]` | `raw_latent_shape[2:5]` → `[C, H, W]` ✗ |
+| BTCHW  | `[B, T, C, H, W]` | `(shape[1], shape[3], shape[4])` → `[T, H, W]` ✓ |
+
+### Common Pitfall
+
+Using `raw_latent_shape[2:5]` with BTCHW layout will extract the wrong dimensions, causing shape mismatches in attention backends. This manifests as errors like:
+
+```
+RuntimeError: The size of tensor a (30576) must match the size of tensor b (23296) at non-singleton dimension 1
+```
+
+Where `30576 = T × H/patch × W/patch` (correct) and `23296 = C × H/patch × W/patch` (wrong).
+
+### Determining Layout
+
+Check the `LatentPreparationStage` configuration in the pipeline:
+- `use_btchw_layout=True` → BTCHW format
+- `use_btchw_layout=False` (default) → BCTHW format
 
 ## Contributing to FastVideo
 

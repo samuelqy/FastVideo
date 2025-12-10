@@ -1156,10 +1156,13 @@ class DmdDenoisingStage(DenoisingStage):
                             self.attn_metadata_builder = self.attn_metadata_builder_cls(
                             )
                             # TODO(will): clean this up
+                            # DmdDenoisingStage uses BTCHW format, so extract T, H, W
+                            # from indices 1, 3, 4 (not 2:5 which would give C, H, W)
+                            raw_shape = batch.raw_latent_shape
+                            thw_shape = (raw_shape[1], raw_shape[3], raw_shape[4])
                             attn_metadata = self.attn_metadata_builder.build(  # type: ignore
                                 current_timestep=i,  # type: ignore
-                                raw_latent_shape=batch.
-                                raw_latent_shape[2:5],  # type: ignore
+                                raw_latent_shape=thw_shape,  # type: ignore
                                 patch_size=fastvideo_args.
                                 pipeline_config.  # type: ignore
                                 dit_config.patch_size,  # type: ignore
